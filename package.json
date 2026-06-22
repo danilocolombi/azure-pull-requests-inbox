@@ -1,0 +1,416 @@
+{
+  "name": "azure-pull-requests-inbox",
+  "displayName": "Azure Pull Requests Inbox",
+  "description": "Your Azure DevOps pull requests in VS Code's sidebar — the ones on your plate, grouped by what they need from you.",
+  "version": "0.1.0",
+  "publisher": "danilocolombi",
+  "icon": "media/icon.png",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other",
+    "SCM Providers"
+  ],
+  "license": "MIT",
+  "keywords": [
+    "azure devops",
+    "pull requests",
+    "code review",
+    "git",
+    "inbox"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/danilocolombi/azure-pull-requests-inbox.git"
+  },
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "azurePullRequests",
+          "title": "Azure Pull Requests",
+          "icon": "media/azure-pull-requests.svg"
+        }
+      ]
+    },
+    "views": {
+      "azurePullRequests": [
+        {
+          "id": "azurePullRequests.inbox",
+          "name": "Inbox"
+        },
+        {
+          "id": "azurePullRequests.conversation",
+          "name": "Conversation",
+          "type": "webview"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "azurePullRequests.inbox",
+        "contents": "Sign in to your Azure DevOps organization to see the pull requests on your plate.\n[Sign in](command:azurePullRequests.signIn)",
+        "when": "!azurePullRequests.signedIn"
+      },
+      {
+        "view": "azurePullRequests.inbox",
+        "contents": "You're signed in but haven't subscribed to any projects yet.\n[Manage Subscriptions](command:azurePullRequests.manageSubscriptions)",
+        "when": "azurePullRequests.signedIn && azurePullRequests.noSubscriptions"
+      },
+      {
+        "view": "azurePullRequests.inbox",
+        "contents": "Azure DevOps rejected your access token (401/403). It may have expired or be missing the required scopes.\n[Update Access Token](command:azurePullRequests.updatePat)",
+        "when": "azurePullRequests.signedIn && azurePullRequests.authError"
+      }
+    ],
+    "commands": [
+      {
+        "command": "azurePullRequests.signIn",
+        "title": "Sign In",
+        "category": "Azure Pull Requests"
+      },
+      {
+        "command": "azurePullRequests.signOut",
+        "title": "Sign Out",
+        "category": "Azure Pull Requests"
+      },
+      {
+        "command": "azurePullRequests.updatePat",
+        "title": "Update Access Token",
+        "category": "Azure Pull Requests"
+      },
+      {
+        "command": "azurePullRequests.refresh",
+        "title": "Refresh",
+        "category": "Azure Pull Requests",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "azurePullRequests.manageSubscriptions",
+        "title": "Manage Subscriptions",
+        "category": "Azure Pull Requests",
+        "icon": "$(list-selection)"
+      },
+      {
+        "command": "azurePullRequests.openInBrowser",
+        "title": "Open in Azure DevOps",
+        "category": "Azure Pull Requests",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "azurePullRequests.openConversation",
+        "title": "Open Conversation",
+        "category": "Azure Pull Requests",
+        "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "azurePullRequests.copyBranchName",
+        "title": "Copy Source Branch Name",
+        "category": "Azure Pull Requests"
+      },
+      {
+        "command": "azurePullRequests.copyUrl",
+        "title": "Copy URL",
+        "category": "Azure Pull Requests"
+      },
+      {
+        "command": "azurePullRequests.copyId",
+        "title": "Copy PR Id",
+        "category": "Azure Pull Requests"
+      },
+      {
+        "command": "azurePullRequests.approve",
+        "title": "Approve",
+        "category": "Azure Pull Requests",
+        "icon": "$(thumbsup)"
+      },
+      {
+        "command": "azurePullRequests.approveWithSuggestions",
+        "title": "Approve with Suggestions",
+        "category": "Azure Pull Requests"
+      },
+      {
+        "command": "azurePullRequests.wait",
+        "title": "Wait for Author",
+        "category": "Azure Pull Requests"
+      },
+      {
+        "command": "azurePullRequests.reject",
+        "title": "Reject",
+        "category": "Azure Pull Requests",
+        "icon": "$(thumbsdown)"
+      },
+      {
+        "command": "azurePullRequests.resetVote",
+        "title": "Reset Vote",
+        "category": "Azure Pull Requests"
+      },
+      {
+        "command": "azurePullRequests.complete",
+        "title": "Complete (Merge)",
+        "category": "Azure Pull Requests",
+        "icon": "$(git-merge)"
+      },
+      {
+        "command": "azurePullRequests.abandon",
+        "title": "Abandon",
+        "category": "Azure Pull Requests"
+      },
+      {
+        "command": "azurePullRequests.setAiApiKey",
+        "title": "Set AI API Key",
+        "category": "Azure Pull Requests"
+      },
+      {
+        "command": "azurePullRequests.enableActions",
+        "title": "Enable Write Actions (Vote / Comment / Complete)",
+        "category": "Azure Pull Requests"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "azurePullRequests.refresh",
+          "when": "view == azurePullRequests.inbox",
+          "group": "navigation@0"
+        },
+        {
+          "command": "azurePullRequests.manageSubscriptions",
+          "when": "view == azurePullRequests.inbox",
+          "group": "1_config@1"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "azurePullRequests.approve",
+          "when": "view == azurePullRequests.inbox && viewItem =~ /^pr/",
+          "group": "inline@0"
+        },
+        {
+          "command": "azurePullRequests.openConversation",
+          "when": "view == azurePullRequests.inbox && viewItem =~ /^pr/",
+          "group": "inline@1"
+        },
+        {
+          "command": "azurePullRequests.openInBrowser",
+          "when": "view == azurePullRequests.inbox && viewItem =~ /^pr/",
+          "group": "inline@2"
+        },
+        {
+          "command": "azurePullRequests.approve",
+          "when": "view == azurePullRequests.inbox && viewItem =~ /^pr/",
+          "group": "1_vote@0"
+        },
+        {
+          "command": "azurePullRequests.approveWithSuggestions",
+          "when": "view == azurePullRequests.inbox && viewItem =~ /^pr/",
+          "group": "1_vote@1"
+        },
+        {
+          "command": "azurePullRequests.wait",
+          "when": "view == azurePullRequests.inbox && viewItem =~ /^pr/",
+          "group": "1_vote@2"
+        },
+        {
+          "command": "azurePullRequests.reject",
+          "when": "view == azurePullRequests.inbox && viewItem =~ /^pr/",
+          "group": "1_vote@3"
+        },
+        {
+          "command": "azurePullRequests.resetVote",
+          "when": "view == azurePullRequests.inbox && viewItem =~ /^pr/",
+          "group": "1_vote@4"
+        },
+        {
+          "command": "azurePullRequests.complete",
+          "when": "view == azurePullRequests.inbox && viewItem == pr.mine",
+          "group": "2_actions@0"
+        },
+        {
+          "command": "azurePullRequests.abandon",
+          "when": "view == azurePullRequests.inbox && viewItem == pr.mine",
+          "group": "2_actions@1"
+        },
+        {
+          "command": "azurePullRequests.openConversation",
+          "when": "view == azurePullRequests.inbox && viewItem =~ /^pr/",
+          "group": "3_open@0"
+        },
+        {
+          "command": "azurePullRequests.openInBrowser",
+          "when": "view == azurePullRequests.inbox && viewItem =~ /^pr/",
+          "group": "3_open@1"
+        },
+        {
+          "command": "azurePullRequests.copyBranchName",
+          "when": "view == azurePullRequests.inbox && viewItem =~ /^pr/",
+          "group": "4_copy@0"
+        },
+        {
+          "command": "azurePullRequests.copyUrl",
+          "when": "view == azurePullRequests.inbox && viewItem =~ /^pr/",
+          "group": "4_copy@1"
+        },
+        {
+          "command": "azurePullRequests.copyId",
+          "when": "view == azurePullRequests.inbox && viewItem =~ /^pr/",
+          "group": "4_copy@2"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "azurePullRequests.openConversation",
+          "when": "false"
+        },
+        {
+          "command": "azurePullRequests.openInBrowser",
+          "when": "false"
+        },
+        {
+          "command": "azurePullRequests.copyBranchName",
+          "when": "false"
+        },
+        {
+          "command": "azurePullRequests.copyUrl",
+          "when": "false"
+        },
+        {
+          "command": "azurePullRequests.copyId",
+          "when": "false"
+        },
+        {
+          "command": "azurePullRequests.approve",
+          "when": "false"
+        },
+        {
+          "command": "azurePullRequests.approveWithSuggestions",
+          "when": "false"
+        },
+        {
+          "command": "azurePullRequests.wait",
+          "when": "false"
+        },
+        {
+          "command": "azurePullRequests.reject",
+          "when": "false"
+        },
+        {
+          "command": "azurePullRequests.resetVote",
+          "when": "false"
+        },
+        {
+          "command": "azurePullRequests.complete",
+          "when": "false"
+        },
+        {
+          "command": "azurePullRequests.abandon",
+          "when": "false"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Azure Pull Requests",
+      "properties": {
+        "azurePullRequests.organizationUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Azure DevOps organization URL (e.g. https://dev.azure.com/contoso).",
+          "scope": "application"
+        },
+        "azurePullRequests.subscriptions": {
+          "type": "array",
+          "default": [],
+          "description": "Projects you're subscribed to, with display order. Managed via the 'Manage Subscriptions' command.",
+          "scope": "application",
+          "items": {
+            "type": "object",
+            "properties": {
+              "projectId": { "type": "string" },
+              "projectName": { "type": "string" },
+              "order": { "type": "number" }
+            },
+            "required": ["projectId", "projectName", "order"]
+          }
+        },
+        "azurePullRequests.reviewIncludeVoted": {
+          "type": "boolean",
+          "default": false,
+          "description": "Keep pull requests in the 'Needs my review' bucket after you have already voted on them. Off by default, so voting clears a PR from your review queue.",
+          "scope": "application"
+        },
+        "azurePullRequests.includeDrafts": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show your draft pull requests in the 'My pull requests' bucket.",
+          "scope": "application"
+        },
+        "azurePullRequests.pollSeconds": {
+          "type": "number",
+          "default": 30,
+          "minimum": 10,
+          "description": "How often (in seconds) to refresh the inbox while it is visible.",
+          "scope": "application"
+        },
+        "azurePullRequests.notifyOnPr": {
+          "type": "string",
+          "default": "mine",
+          "enum": ["off", "mine", "all"],
+          "enumDescriptions": [
+            "Never show pull-request notifications.",
+            "Notify when a new PR needs your review, or when your own PR is approved/rejected.",
+            "Notify on any tracked change."
+          ],
+          "description": "Show a desktop notification when a tracked pull request changes.",
+          "scope": "application"
+        },
+        "azurePullRequests.enableActions": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Whether write actions (vote / comment / complete) are enabled. Set automatically the first time one of those actions succeeds — actions are tried with your current token, and you're only prompted for a Personal Access Token with **Code (Read & Write)** if Azure refuses. Off by default so the extension works with a read-only token.",
+          "scope": "application"
+        },
+        "azurePullRequests.ai.baseUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Base URL for an OpenAI-compatible API used by 'Polish with AI' when no built-in editor model (e.g. Copilot) is available, e.g. https://api.openai.com/v1.",
+          "scope": "application"
+        },
+        "azurePullRequests.ai.model": {
+          "type": "string",
+          "default": "",
+          "description": "Model id for the OpenAI-compatible 'Polish with AI' fallback, e.g. gpt-4o-mini.",
+          "scope": "application"
+        },
+        "azurePullRequests.staleAfterDays": {
+          "type": "number",
+          "default": 7,
+          "minimum": 0,
+          "description": "Flag pull requests with no activity for this many days as stale. Set to 0 to disable.",
+          "scope": "application"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "node esbuild.js --production",
+    "watch": "node esbuild.js --watch",
+    "compile": "tsc --noEmit",
+    "lint": "eslint src --ext ts"
+  },
+  "dependencies": {
+    "azure-devops-node-api": "^14.0.2",
+    "marked": "^12.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.90.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "esbuild": "^0.20.0",
+    "eslint": "^8.57.0",
+    "typescript": "^5.4.0"
+  }
+}
