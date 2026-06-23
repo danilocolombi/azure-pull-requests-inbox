@@ -12,7 +12,9 @@ import {
   openInBrowser,
   vote
 } from './commands/prActions';
+import { copyPrForAi, reviewWithAi } from './commands/review';
 import { manageSubscriptions } from './commands/subscriptions';
+import { DiffContentProvider, DIFF_SCHEME, openFileDiff } from './view/diffProvider';
 import { PollController } from './poll/pollController';
 import { getNotifyMode, getSubscriptions } from './state/config';
 import { ConversationPanel } from './view/conversationPanel';
@@ -38,6 +40,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   context.subscriptions.push(view);
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider('azurePullRequests.conversation', panel)
+  );
+  context.subscriptions.push(
+    vscode.workspace.registerTextDocumentContentProvider(DIFF_SCHEME, new DiffContentProvider(client))
   );
 
   // Update the conversation panel as the user moves through the inbox.
@@ -123,6 +128,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     seededNotify = true;
   };
 
+  // After sign-in/out or a subscription change, re-seed silently on the next data fetch so a
+  // freshly populated inbox doesn't toast for every PR that was already there.
+  const resetNotifyState = () => {
+    seededNotify = false;
+    prevReviewIds = new Set();
+    prevMineSig = new Map();
+  };
+
   context.subscriptions.push(
     provider.onDidChangeData((summaries) => {
       notify(summaries);
@@ -143,6 +156,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   };
 
   const refreshAll = () => {
+    resetNotifyState();
     panel.clear();
     provider.refresh();
   };
@@ -200,6 +214,27 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
     }),
     vscode.commands.registerCommand('azurePullRequests.openInBrowser', openInBrowser),
+    vscode.commands.registerCommand('azurePullRequests.reviewWithAi', (node) =>
+      reviewWithAi(client, auth, node)
+    ),
+    vscode.commands.registerCommand('azurePullRequests.copyPrForAi', (node) =>
+      copyPrForAi(client, node)
+    ),
+    vscode.commands.registerCommand(
+      'azurePullRequests.openFileDiff',
+      (arg: {
+        file: import('./azure/diff').ChangedFile;
+        baseCommit: string;
+        sourceCommit: string;
+        repoId: string;
+        project: string;
+        prId: number;
+      }) => {
+        if (arg?.file) {
+          return openFileDiff(arg.file, arg.baseCommit, arg.sourceCommit, arg.repoId, arg.project, arg.prId);
+        }
+      }
+    ),
     vscode.commands.registerCommand('azurePullRequests.copyBranchName', copyBranchName),
     vscode.commands.registerCommand('azurePullRequests.copyUrl', copyUrl),
     vscode.commands.registerCommand('azurePullRequests.copyId', copyId),
@@ -254,6 +289,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         e.affectsConfiguration('azurePullRequests.includeDrafts') ||
         e.affectsConfiguration('azurePullRequests.staleAfterDays')
       ) {
+        if (e.affectsConfiguration('azurePullRequests.subscriptions')) resetNotifyState();
         provider.refresh();
       }
       if (

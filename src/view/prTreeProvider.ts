@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { AzureClient, isUnauthorized } from '../azure/client';
+import { getPrChangedFiles, PrDiff } from '../azure/diff';
 import {
   countUnresolved,
   getChecks,
@@ -17,6 +18,8 @@ import {
 import {
   BucketNode,
   CheckNode,
+  FileChangeNode,
+  FilesNode,
   MessageNode,
   Node,
   PrDetails,
@@ -39,6 +42,7 @@ export class PrTreeProvider implements vscode.TreeDataProvider<Node> {
   private buckets: Record<PrBucketKind, PullRequestNode[]> = { review: [], mine: [] };
   private errorMessage: string | undefined;
   private detailCache = new Map<number, PrDetails>();
+  private diffCache = new Map<number, PrDiff>();
 
   constructor(
     private readonly client: AzureClient,
@@ -50,6 +54,7 @@ export class PrTreeProvider implements vscode.TreeDataProvider<Node> {
     if (!signedIn) {
       this.buckets = { review: [], mine: [] };
       this.detailCache.clear();
+      this.diffCache.clear();
     }
   }
 
@@ -70,6 +75,7 @@ export class PrTreeProvider implements vscode.TreeDataProvider<Node> {
 
   refresh(): void {
     this.detailCache.clear();
+    this.diffCache.clear();
     void this.refreshData();
   }
 
@@ -95,6 +101,9 @@ export class PrTreeProvider implements vscode.TreeDataProvider<Node> {
     if (element instanceof PullRequestNode) {
       return this.prChildren(element);
     }
+    if (element instanceof FilesNode) {
+      return this.fileChildren(element);
+    }
     return [];
   }
 
@@ -105,7 +114,25 @@ export class PrTreeProvider implements vscode.TreeDataProvider<Node> {
     }
     for (const c of node.details.checks ?? []) children.push(new CheckNode(c));
     children.push(new ThreadsNode(node));
+    children.push(new FilesNode(node.pr, this.diffCache.get(node.pr.id)?.files.length));
     return children;
+  }
+
+  /** Lazily fetch the changed files for a PR the first time its Files group is expanded. */
+  private async fileChildren(node: FilesNode): Promise<Node[]> {
+    const pr = node.pr;
+    let diff = this.diffCache.get(pr.id);
+    if (!diff) {
+      try {
+        diff = await getPrChangedFiles(this.client, pr.repoId, pr.id, pr.projectName);
+        this.diffCache.set(pr.id, diff);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return [new MessageNode(msg, 'error')];
+      }
+    }
+    if (diff.files.length === 0) return [new MessageNode('(no file changes)')];
+    return diff.files.map((f) => new FileChangeNode(f, diff!.baseCommit, diff!.sourceCommit, pr));
   }
 
   /**
@@ -141,7 +168,7 @@ export class PrTreeProvider implements vscode.TreeDataProvider<Node> {
       this.errorMessage = undefined;
       this.onAuthError(false);
 
-      let review = reviewLists.flat().filter((p) => p.authorId !== myId);
+      let review = reviewLists.flat().filter((p) => p.authorId !== myId && !p.isDraft);
       if (!getReviewIncludeVoted()) review = review.filter((p) => p.myVote === 0);
       let mine = mineLists.flat();
       if (!getIncludeDrafts()) mine = mine.filter((p) => !p.isDraft);

@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- **See diffs** — each PR now has a **Files** group; clicking a file opens a native VS Code
+  side-by-side diff against the PR's merge base (via a read-only `azurepr:` virtual document).
+- **Review with AI** and **Copy PR for AI** — bundle the PR title, description, and a capped
+  unified diff for an in-editor AI review (Copilot / OpenAI-compatible) or hand-off to Claude
+  Code / Copilot Chat.
+- Fix: notifications no longer flood when you first add subscriptions or sign back in (the
+  "seen" state re-seeds silently after sign-in/out and subscription changes).
+- Drafts no longer appear in the *Needs my review* bucket.
+
 ## 0.1.0
 
 Initial release.
