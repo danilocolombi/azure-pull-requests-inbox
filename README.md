@@ -1,5 +1,11 @@
 # Azure Pull Requests Inbox
 
+[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/danilocolombi.azure-pull-requests-inbox?label=VS%20Code%20Marketplace&color=10b894)](https://marketplace.visualstudio.com/items?itemName=danilocolombi.azure-pull-requests-inbox)
+[![Open VSX](https://img.shields.io/open-vsx/v/danilocolombi/azure-pull-requests-inbox?label=Open%20VSX&color=10b894)](https://open-vsx.org/extension/danilocolombi/azure-pull-requests-inbox)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
+![Azure Pull Requests Inbox](media/hero.png)
+
 **Your Azure DevOps pull requests, in VS Code's sidebar — the ones on your plate, one click away.**
 
 A real inbox, not a list. Pull requests are grouped by what they need from *you* —
@@ -39,6 +45,25 @@ and shares their stack and conventions.
 - **Desktop notifications** — a toast when a new PR lands in your review queue, or when your own
   PR is approved or gets changes requested (configurable: off / mine / all).
 - **Works in Cursor, VSCodium, Windsurf** — published to the VS Code Marketplace and Open VSX.
+
+## See it
+
+**The inbox** — every PR that needs you, grouped and live, across all your projects. Expand one
+for reviewers, checks, threads, and changed files.
+
+![Inbox tree](media/screenshot-inbox.png)
+
+**Read & reply** — the conversation panel renders the discussion, with a vote bar and a Markdown
+composer (live preview + optional Polish with AI).
+
+![Conversation panel](media/screenshot-conversation.png)
+
+**Review with AI** — bundle the PR and its diff and get a structured review in a Markdown preview,
+using your editor's own model.
+
+![AI review](media/screenshot-ai-review.png)
+
+> Illustrative renders of the extension's UI.
 
 ## Quick start
 
