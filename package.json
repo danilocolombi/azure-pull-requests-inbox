@@ -106,6 +106,22 @@
         "icon": "$(comment-discussion)"
       },
       {
+        "command": "azurePullRequests.reviewWithAi",
+        "title": "Review with AI",
+        "category": "Azure Pull Requests",
+        "icon": "$(sparkle)"
+      },
+      {
+        "command": "azurePullRequests.copyPrForAi",
+        "title": "Copy PR for AI",
+        "category": "Azure Pull Requests"
+      },
+      {
+        "command": "azurePullRequests.openFileDiff",
+        "title": "Open File Diff",
+        "category": "Azure Pull Requests"
+      },
+      {
         "command": "azurePullRequests.copyBranchName",
         "title": "Copy Source Branch Name",
         "category": "Azure Pull Requests"
@@ -189,14 +205,29 @@
           "group": "inline@0"
         },
         {
-          "command": "azurePullRequests.openConversation",
+          "command": "azurePullRequests.reviewWithAi",
           "when": "view == azurePullRequests.inbox && viewItem =~ /^pr/",
           "group": "inline@1"
         },
         {
-          "command": "azurePullRequests.openInBrowser",
+          "command": "azurePullRequests.openConversation",
           "when": "view == azurePullRequests.inbox && viewItem =~ /^pr/",
           "group": "inline@2"
+        },
+        {
+          "command": "azurePullRequests.openInBrowser",
+          "when": "view == azurePullRequests.inbox && viewItem =~ /^pr/",
+          "group": "inline@3"
+        },
+        {
+          "command": "azurePullRequests.reviewWithAi",
+          "when": "view == azurePullRequests.inbox && viewItem =~ /^pr/",
+          "group": "0_ai@0"
+        },
+        {
+          "command": "azurePullRequests.copyPrForAi",
+          "when": "view == azurePullRequests.inbox && viewItem =~ /^pr/",
+          "group": "0_ai@1"
         },
         {
           "command": "azurePullRequests.approve",
@@ -262,6 +293,18 @@
       "commandPalette": [
         {
           "command": "azurePullRequests.openConversation",
+          "when": "false"
+        },
+        {
+          "command": "azurePullRequests.openFileDiff",
+          "when": "false"
+        },
+        {
+          "command": "azurePullRequests.reviewWithAi",
+          "when": "false"
+        },
+        {
+          "command": "azurePullRequests.copyPrForAi",
           "when": "false"
         },
         {

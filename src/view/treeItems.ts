@@ -1,8 +1,17 @@
 import * as vscode from 'vscode';
 import { getStaleAfterDays } from '../state/config';
 import { CheckStatus, PrBucketKind, PrCheck, PrReviewer, PrSummary, Vote } from '../azure/pullRequests';
+import { ChangedFile, FileChange } from '../azure/diff';
 
-export type Node = BucketNode | PullRequestNode | ReviewerNode | CheckNode | ThreadsNode | MessageNode;
+export type Node =
+  | BucketNode
+  | PullRequestNode
+  | ReviewerNode
+  | CheckNode
+  | ThreadsNode
+  | FilesNode
+  | FileChangeNode
+  | MessageNode;
 
 export const BUCKET_LABEL: Record<PrBucketKind, string> = {
   review: 'Needs my review',
@@ -102,6 +111,42 @@ export class ThreadsNode extends vscode.TreeItem {
   }
 }
 
+export class FilesNode extends vscode.TreeItem {
+  readonly kind = 'files' as const;
+  constructor(
+    public readonly pr: PrSummary,
+    count?: number
+  ) {
+    super('Files', vscode.TreeItemCollapsibleState.Collapsed);
+    this.id = `files:${pr.bucket}:${pr.id}`;
+    this.contextValue = 'files';
+    this.iconPath = new vscode.ThemeIcon('files');
+    if (typeof count === 'number') this.description = `${count}`;
+  }
+}
+
+export class FileChangeNode extends vscode.TreeItem {
+  readonly kind = 'fileChange' as const;
+  constructor(
+    file: ChangedFile,
+    baseCommit: string,
+    sourceCommit: string,
+    pr: PrSummary
+  ) {
+    super(file.path.split('/').pop() ?? file.path, vscode.TreeItemCollapsibleState.None);
+    this.contextValue = 'fileChange';
+    this.description = trimDir(file.path);
+    this.resourceUri = vscode.Uri.parse('azurepr-file:/' + file.path);
+    this.iconPath = fileChangeIcon(file.change);
+    this.tooltip = `${file.path} (${file.change})`;
+    this.command = {
+      command: 'azurePullRequests.openFileDiff',
+      title: 'Open Diff',
+      arguments: [{ file, baseCommit, sourceCommit, repoId: pr.repoId, project: pr.projectName, prId: pr.id }]
+    };
+  }
+}
+
 export class MessageNode extends vscode.TreeItem {
   readonly kind = 'message' as const;
   constructor(label: string, icon?: string) {
@@ -115,6 +160,24 @@ export class MessageNode extends vscode.TreeItem {
 
 function color(id: string): vscode.ThemeColor {
   return new vscode.ThemeColor(id);
+}
+
+function trimDir(path: string): string {
+  const i = path.lastIndexOf('/');
+  return i > 0 ? path.slice(0, i) : '';
+}
+
+function fileChangeIcon(change: FileChange): vscode.ThemeIcon {
+  switch (change) {
+    case 'add':
+      return new vscode.ThemeIcon('diff-added', color('charts.green'));
+    case 'delete':
+      return new vscode.ThemeIcon('diff-removed', color('charts.red'));
+    case 'rename':
+      return new vscode.ThemeIcon('diff-renamed', color('charts.blue'));
+    default:
+      return new vscode.ThemeIcon('diff-modified', color('charts.yellow'));
+  }
 }
 
 function describe(pr: PrSummary, d: PrDetails): string {

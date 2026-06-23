@@ -22,8 +22,13 @@ and shares their stack and conventions.
   activity-bar badge and status bar show how many are waiting on your review.
 - **Status at a glance** — each row shows `project/repo · status · your vote · checks · 💬 unresolved`,
   with draft, conflict, and stale markers. Icons turn green/red/orange as votes and checks land.
-- **Expand for detail** — reviewers and their votes, branch-policy/build checks, and a thread
-  summary, fetched lazily and refreshed in place.
+- **Expand for detail** — reviewers and their votes, branch-policy/build checks, a thread
+  summary, and a **Files** group listing every changed file; click one to open a native VS Code
+  side-by-side diff against the PR's merge base (just like Azure's web "Files" tab).
+- **Review with AI** — one click bundles the PR (title, description, and the diff) and gets an
+  AI review (summary, risks, suggestions, tests) using your editor's own model (Copilot via
+  `vscode.lm`, or any OpenAI-compatible endpoint you configure). Or **Copy PR for AI** to hand
+  the bundle to Claude Code / Copilot Chat yourself.
 - **Conversation panel** — read the discussion (rendered Markdown), reply to a thread or start a
   new one, with a Markdown composer, live preview, and optional **Polish with AI** using your
   own model (Copilot via `vscode.lm`, or any OpenAI-compatible endpoint you configure).
