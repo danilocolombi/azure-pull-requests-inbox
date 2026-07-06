@@ -1,8 +1,8 @@
 {
   "name": "azure-pull-requests-inbox",
   "displayName": "Azure Pull Requests Inbox",
-  "description": "Your Azure DevOps pull requests in VS Code's sidebar — the ones on your plate, grouped by what they need from you.",
-  "version": "0.1.0",
+  "description": "Your team's Azure DevOps pull requests in VS Code's sidebar — every PR by project, with the ones that need you highlighted on top.",
+  "version": "0.2.0",
   "publisher": "danilocolombi",
   "icon": "media/icon.png",
   "engines": {
@@ -370,23 +370,33 @@
           "items": {
             "type": "object",
             "properties": {
-              "projectId": { "type": "string" },
-              "projectName": { "type": "string" },
-              "order": { "type": "number" }
+              "projectId": {
+                "type": "string"
+              },
+              "projectName": {
+                "type": "string"
+              },
+              "order": {
+                "type": "number"
+              }
             },
-            "required": ["projectId", "projectName", "order"]
+            "required": [
+              "projectId",
+              "projectName",
+              "order"
+            ]
           }
         },
         "azurePullRequests.reviewIncludeVoted": {
           "type": "boolean",
           "default": false,
-          "description": "Keep pull requests in the 'Needs my review' bucket after you have already voted on them. Off by default, so voting clears a PR from your review queue.",
+          "description": "Keep pull requests highlighted as needing your review after you have already voted on them. Off by default, so voting demotes a PR out of your review queue.",
           "scope": "application"
         },
         "azurePullRequests.includeDrafts": {
           "type": "boolean",
           "default": true,
-          "description": "Show your draft pull requests in the 'My pull requests' bucket.",
+          "description": "Show draft pull requests in the inbox. When off, drafts are hidden entirely.",
           "scope": "application"
         },
         "azurePullRequests.pollSeconds": {
@@ -399,7 +409,11 @@
         "azurePullRequests.notifyOnPr": {
           "type": "string",
           "default": "mine",
-          "enum": ["off", "mine", "all"],
+          "enum": [
+            "off",
+            "mine",
+            "all"
+          ],
           "enumDescriptions": [
             "Never show pull-request notifications.",
             "Notify when a new PR needs your review, or when your own PR is approved/rejected.",

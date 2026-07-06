@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { AuthService } from '../auth/authService';
 import { AzureClient } from '../azure/client';
 import { abandonPullRequest, completePullRequest, setVote } from '../azure/prActions';
-import { getMyId, Vote } from '../azure/pullRequests';
+import { getMyId } from '../azure/pullRequests';
 import { PrTreeProvider } from '../view/prTreeProvider';
 import { PullRequestNode } from '../view/treeItems';
 import { runWriteAction } from './actions';
@@ -55,8 +55,8 @@ export async function vote(
     setVote(client, pr.pr.repoId, pr.pr.id, myId, value)
   );
   if (ok === undefined) return;
-  // Leaving a vote usually clears the PR from the review queue; reflect that at once.
-  if (pr.pr.bucket === 'review' && value !== Vote.noVote) provider.removeFromReview(pr.pr.id);
+  // Leaving a vote usually demotes the PR out of the review queue; reflect that at once.
+  provider.markVoted(pr.pr.id, value);
   provider.refresh();
 }
 

@@ -215,7 +215,7 @@ function toHeader(pr: PrSummary): Header {
     branches: pr.sourceBranch && pr.targetBranch ? `${pr.sourceBranch} → ${pr.targetBranch}` : '',
     url: pr.url,
     myVote: pr.myVote,
-    isReviewer: pr.bucket === 'review' || pr.reviewers.some((r) => r.vote !== 0)
+    isReviewer: pr.relationship === 'review' || pr.reviewers.some((r) => r.vote !== 0)
   };
 }
 

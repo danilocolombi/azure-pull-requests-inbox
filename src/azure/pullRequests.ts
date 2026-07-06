@@ -11,7 +11,8 @@ import { PolicyEvaluationRecord, PolicyEvaluationStatus } from 'azure-devops-nod
 import { AzureClient } from './client';
 import { getOrganizationUrl, Subscription } from '../state/config';
 
-export type PrBucketKind = 'review' | 'mine';
+/** The signed-in user's relationship to a pull request; drives sort order and styling. */
+export type PrRelationship = 'review' | 'mine' | 'other';
 export type PrStatus = 'active' | 'completed' | 'abandoned' | 'unknown';
 export type CheckStatus = 'approved' | 'rejected' | 'running' | 'queued' | 'notApplicable' | 'broken';
 
@@ -33,7 +34,7 @@ export interface PrReviewer {
 }
 
 export interface PrSummary {
-  bucket: PrBucketKind;
+  relationship: PrRelationship;
   id: number;
   title: string;
   projectId: string;
@@ -92,33 +93,58 @@ export async function getMyId(client: AzureClient): Promise<string | undefined> 
 
 // --- listing -----------------------------------------------------------------
 
+const PAGE_SIZE = 100;
+/** Safety cap per project so a huge org can't stall the refresh loop. */
+export const MAX_PRS_PER_PROJECT = 500;
+
 /**
- * List the active pull requests for one project that match a relationship to the
- * signed-in user: `review` = ones where they are a reviewer, `mine` = ones they created.
- * `getPullRequestsByProject` searches across every repository in the project, so there is
- * no need to enumerate repositories. Reviewers (with votes) come back inline.
+ * List every active pull request in one project. `getPullRequestsByProject` searches
+ * across every repository in the project, so there is no need to enumerate repositories,
+ * and reviewers (with votes) come back inline — the user's relationship to each PR is
+ * derived locally from that. Pages until exhausted or MAX_PRS_PER_PROJECT.
  */
-export async function listPullRequests(
+export async function listAllPullRequests(
   client: AzureClient,
   sub: Subscription,
-  kind: PrBucketKind,
-  myId: string
+  myId: string,
+  reviewIncludeVoted: boolean
 ): Promise<PrSummary[]> {
   const conn = await client.get();
   const git = await conn.getGitApi();
-  const criteria: GitPullRequestSearchCriteria = {
-    status: PullRequestStatus.Active,
-    ...(kind === 'review' ? { reviewerId: myId } : { creatorId: myId })
-  };
-  const prs = await git.getPullRequestsByProject(sub.projectName, criteria, undefined, undefined, 100);
-  return (prs ?? []).map((pr) => toSummary(pr, sub, kind, myId)).filter((p): p is PrSummary => !!p);
+  const criteria: GitPullRequestSearchCriteria = { status: PullRequestStatus.Active };
+  const all: GitPullRequest[] = [];
+  for (let skip = 0; skip < MAX_PRS_PER_PROJECT; skip += PAGE_SIZE) {
+    const page = await git.getPullRequestsByProject(sub.projectName, criteria, undefined, skip, PAGE_SIZE);
+    all.push(...(page ?? []));
+    if (!page || page.length < PAGE_SIZE) break;
+  }
+  return all
+    .map((pr) => toSummary(pr, sub, myId, reviewIncludeVoted))
+    .filter((p): p is PrSummary => !!p);
+}
+
+/**
+ * `mine` = I created it. `review` = I'm an individual (non-container) reviewer on someone
+ * else's non-draft PR and — unless reviewIncludeVoted — haven't voted yet. Everything else
+ * in the project is `other`. Team/group reviewer entries come back as containers without
+ * expanded membership, so a PR assigned to you only via a team lands in `other`.
+ */
+export function deriveRelationship(
+  s: Pick<PrSummary, 'authorId' | 'isDraft' | 'reviewers' | 'myVote'>,
+  myId: string,
+  reviewIncludeVoted: boolean
+): PrRelationship {
+  if (s.authorId === myId) return 'mine';
+  const me = s.reviewers.find((r) => !r.isContainer && r.id === myId);
+  if (me && !s.isDraft && (reviewIncludeVoted || me.vote === 0)) return 'review';
+  return 'other';
 }
 
 function toSummary(
   pr: GitPullRequest,
   sub: Subscription,
-  kind: PrBucketKind,
-  myId: string
+  myId: string,
+  reviewIncludeVoted: boolean
 ): PrSummary | undefined {
   if (pr.pullRequestId === undefined) return undefined;
   const repoName = pr.repository?.name ?? '';
@@ -131,8 +157,15 @@ function toSummary(
   }));
   const mine = reviewers.find((r) => r.id === myId);
   const orgUrl = getOrganizationUrl();
+  const base = {
+    authorId: pr.createdBy?.id ?? '',
+    isDraft: !!pr.isDraft,
+    reviewers,
+    myVote: mine?.vote ?? 0
+  };
   return {
-    bucket: kind,
+    ...base,
+    relationship: deriveRelationship(base, myId, reviewIncludeVoted),
     id: pr.pullRequestId,
     title: pr.title ?? `Pull Request ${pr.pullRequestId}`,
     projectId: sub.projectId,
@@ -141,14 +174,10 @@ function toSummary(
     repoName,
     sourceBranch: stripRefHead(pr.sourceRefName),
     targetBranch: stripRefHead(pr.targetRefName),
-    isDraft: !!pr.isDraft,
     status: mapStatus(pr.status),
     authorName: pr.createdBy?.displayName ?? 'Unknown',
-    authorId: pr.createdBy?.id ?? '',
-    myVote: mine?.vote ?? 0,
     hasConflicts: pr.mergeStatus === PullRequestAsyncStatus.Conflicts,
     createdDate: pr.creationDate ? new Date(pr.creationDate) : undefined,
-    reviewers,
     url: repoName
       ? `${orgUrl}/${encodeURIComponent(sub.projectName)}/_git/${encodeURIComponent(repoName)}/pullrequest/${pr.pullRequestId}`
       : `${orgUrl}/${encodeURIComponent(sub.projectName)}/_pullrequest/${pr.pullRequestId}`

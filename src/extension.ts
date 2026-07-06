@@ -18,6 +18,7 @@ import { DiffContentProvider, DIFF_SCHEME, openFileDiff } from './view/diffProvi
 import { PollController } from './poll/pollController';
 import { getNotifyMode, getSubscriptions } from './state/config';
 import { ConversationPanel } from './view/conversationPanel';
+import { PrDecorationProvider } from './view/prDecorations';
 import { PrTreeProvider } from './view/prTreeProvider';
 import { PullRequestNode } from './view/treeItems';
 
@@ -44,6 +45,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   context.subscriptions.push(
     vscode.workspace.registerTextDocumentContentProvider(DIFF_SCHEME, new DiffContentProvider(client))
   );
+  context.subscriptions.push(vscode.window.registerFileDecorationProvider(new PrDecorationProvider()));
 
   // Update the conversation panel as the user moves through the inbox.
   context.subscriptions.push(
@@ -91,10 +93,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     return `${approved}|${rejected ? 'r' : ''}${waiting ? 'w' : ''}`;
   };
 
+  // Only PRs that concern the user can toast; the 'other' rows are browse-only.
   const notify = (summaries: PrSummary[]) => {
     const mode = getNotifyMode();
-    const review = summaries.filter((s) => s.bucket === 'review');
-    const mine = summaries.filter((s) => s.bucket === 'mine');
+    const review = summaries.filter((s) => s.relationship === 'review');
+    const mine = summaries.filter((s) => s.relationship === 'mine');
     const reviewIds = new Set(review.map((s) => s.id));
     const mineSig = new Map(mine.map((s) => [s.id, mineSignature(s)]));
 

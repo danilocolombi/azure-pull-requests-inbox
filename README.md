@@ -6,14 +6,16 @@
 
 ![Azure Pull Requests Inbox](media/hero.png)
 
-**Your Azure DevOps pull requests, in VS Code's sidebar — the ones on your plate, one click away.**
+**Your team's Azure DevOps pull requests, in VS Code's sidebar — with the ones on your plate
+impossible to miss.**
 
-A real inbox, not a list. Pull requests are grouped by what they need from *you* —
-**Needs my review** and **My pull requests** — across every project you subscribe to. Each
-row shows live status at a glance: your vote, branch-policy/check results, unresolved comment
-count, and merge-conflict state. Expand a PR to see reviewers, checks, and threads inline; open
-the conversation panel to read and reply. Vote, comment, and complete or abandon — right from
-the editor.
+The whole board, triaged for you. Every active pull request in the projects you subscribe to,
+grouped by project — PRs that **need your review** float to the top with a blue highlight and
+badge, **your own PRs** come next, and everyone else's sit dimmed below, there when you want to
+browse what the team is shipping. Each row shows live status at a glance: author, votes,
+branch-policy/check results, unresolved comment count, and merge-conflict state. Expand a PR to
+see reviewers, checks, and threads inline; open the conversation panel to read and reply. Vote,
+comment, and complete or abandon — right from the editor.
 
 This is the pull-request sibling to
 [Azure Boards Inbox](https://marketplace.visualstudio.com/items?itemName=danilocolombi.azure-boards-inbox)
@@ -23,10 +25,11 @@ and shares their stack and conventions.
 
 ## Features
 
-- **Two buckets, every project** — *Needs my review* (you're a reviewer and haven't voted yet)
-  and *My pull requests* (you opened them), pulled from all subscribed projects at once. The
-  activity-bar badge and status bar show how many are waiting on your review.
-- **Status at a glance** — each row shows `project/repo · status · your vote · checks · 💬 unresolved`,
+- **Every PR, yours highlighted** — all active pull requests in every subscribed project, grouped
+  by project. Ones needing your review are pinned to the top in blue with a ● badge, your own PRs
+  follow, and the rest are dimmed for browsing. The activity-bar badge and status bar count only
+  what's waiting on your review.
+- **Status at a glance** — each row shows `repo · author · status · votes · checks · 💬 unresolved`,
   with draft, conflict, and stale markers. Icons turn green/red/orange as votes and checks land.
 - **Expand for detail** — reviewers and their votes, branch-policy/build checks, a thread
   summary, and a **Files** group listing every changed file; click one to open a native VS Code
@@ -48,7 +51,7 @@ and shares their stack and conventions.
 
 ## See it
 
-**The inbox** — every PR that needs you, grouped and live, across all your projects. Expand one
+**The inbox** — every PR in your projects, live, with the ones that need you on top. Expand one
 for reviewers, checks, threads, and changed files.
 
 ![Inbox tree](media/screenshot-inbox.png)
@@ -82,8 +85,8 @@ To vote, comment, or complete a PR, just do it — the first write action prompt
 | --- | --- | --- |
 | `azurePullRequests.organizationUrl` | `""` | Azure DevOps organization URL. |
 | `azurePullRequests.subscriptions` | `[]` | Subscribed projects (managed via the command). |
-| `azurePullRequests.reviewIncludeVoted` | `false` | Keep PRs in *Needs my review* after you've voted. |
-| `azurePullRequests.includeDrafts` | `true` | Show your draft PRs in *My pull requests*. |
+| `azurePullRequests.reviewIncludeVoted` | `false` | Keep PRs highlighted as needing your review after you've voted. |
+| `azurePullRequests.includeDrafts` | `true` | Show draft PRs; off hides all drafts. |
 | `azurePullRequests.pollSeconds` | `30` | Refresh interval while the inbox is visible (min 10). |
 | `azurePullRequests.notifyOnPr` | `mine` | Desktop notifications: `off` / `mine` / `all`. |
 | `azurePullRequests.enableActions` | `false` | Set automatically after your first successful write action. |
@@ -94,10 +97,11 @@ To vote, comment, or complete a PR, just do it — the first write action prompt
 ## How it works
 
 Azure DevOps has no public push API, so — like its own web UI — this extension polls. While the
-inbox is visible it re-fetches your review queue and your open PRs (a single
-`getPullRequestsByProject` call per project, which returns reviewers and votes inline), then
-fills in branch-policy checks and unresolved-comment counts in the background. Polling stops when
-the view is hidden. All data goes through
+inbox is visible it re-fetches every active PR in each subscribed project (one paged
+`getPullRequestsByProject` call per project, which returns reviewers and votes inline) and works
+out your relationship to each PR locally. Branch-policy checks and unresolved-comment counts are
+filled in in the background for the PRs that concern you; other rows fetch them when expanded.
+Polling stops when the view is hidden. All data goes through
 [`azure-devops-node-api`](https://www.npmjs.com/package/azure-devops-node-api); your PAT is kept
 in VS Code's encrypted `SecretStorage`.
 

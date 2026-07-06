@@ -5,9 +5,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this is
 
 A VS Code / Cursor extension ("Azure Pull Requests Inbox", id `azure-pull-requests-inbox`,
-command/config namespace `azurePullRequests.*`) that shows your Azure DevOps pull requests in an
-activity-bar tree, grouped by relationship to you (**Needs my review** / **My pull requests**),
-with a conversation webview for reading and replying. It is a companion to the author's published
+command/config namespace `azurePullRequests.*`) that shows **every active Azure DevOps pull
+request** in your subscribed projects in an activity-bar tree, grouped by project, with the ones
+that need your review or are yours sorted first and visually highlighted (file decorations), plus
+a conversation webview for reading and replying. It is a companion to the author's published
 `azure-boards-inbox` and `azure-pipelines-inbox` extensions and mirrors their stack and conventions.
 
 ## Commands
@@ -38,10 +39,13 @@ conversation webview + the status bar, and every command and the config-change l
   cached `WebApi` keyed by org URL + PAT fingerprint, 30s socket timeout. `invalidate()` after any
   sign-in/PAT change. `isUnauthorized(err)` classifies 401/403 + Azure TF error codes.
 - `PrTreeProvider` ([src/view/prTreeProvider.ts](src/view/prTreeProvider.ts)) — the
-  `TreeDataProvider`. `refreshData()` fetches both buckets across all subscriptions
-  (`getPullRequestsByProject` per project — reviewers/votes come back inline), applies the bucket
-  rules, then fills checks + unresolved-comment counts lazily via `loadDetails()` (bounded
-  concurrency) and pushes them into rows. Emits `onDidChangeData` (drives the badge + notifications).
+  `TreeDataProvider`. `refreshData()` fetches **all** active PRs per subscribed project in one paged
+  `getPullRequestsByProject` call (no reviewer/creator criteria; reviewers/votes come back inline,
+  capped at `MAX_PRS_PER_PROJECT`), derives each PR's relationship locally, sorts each project group
+  review → mine → other (then newest), then fills checks + unresolved-comment counts via
+  `loadDetails()` (bounded concurrency) — eagerly only for review/mine rows; `other` rows load
+  details on first expand. Emits `onDidChangeData` (drives the badge + notifications, both of which
+  ignore `other` rows). `markVoted()` re-derives a PR's relationship locally right after a vote.
 - `ConversationPanel` ([src/view/conversationPanel.ts](src/view/conversationPanel.ts)) — a
   `WebviewViewProvider` (CSP + nonce, HTML inline) showing the selected PR's threads, a vote bar, and
   a Markdown composer with live preview and Polish with AI. Updated on tree selection or the
@@ -50,10 +54,12 @@ conversation webview + the status bar, and every command and the config-change l
   timer that calls `provider.refreshData()` while the inbox is visible (PRs change slowly, so there
   is nothing to "tail" — it just re-fetches). Re-armed via `setVisible(true)`.
 
-**Bucket rules** (in `refreshData`): *Needs my review* = reviewer is me, active, not my own PR, and
-(unless `reviewIncludeVoted`) my vote is 0. *My pull requests* = creator is me, active (+ drafts
-unless `includeDrafts` is off). PR IDs are organization-wide unique, so they key the detail cache
-and tree node ids directly.
+**Relationship rules** (`deriveRelationship` in [src/azure/pullRequests.ts](src/azure/pullRequests.ts)):
+`mine` = I created it; `review` = I'm an individual (non-container) reviewer on someone else's
+non-draft PR and (unless `reviewIncludeVoted`) haven't voted; everything else is `other`. Team/group
+reviewer entries are containers without expanded membership, so team-only assignments land in
+`other`. `includeDrafts: false` hides all drafts. PR IDs are organization-wide unique, so they key
+the detail cache and tree node ids directly.
 
 **Azure API** lives in [src/azure/pullRequests.ts](src/azure/pullRequests.ts) (list via
 `getPullRequestsByProject`; checks via `PolicyApi.getPolicyEvaluations` on the
@@ -70,10 +76,12 @@ prompts for a Code (Read & Write) PAT (then retries once). Mirror this for any n
 **Config** is centralized in [src/state/config.ts](src/state/config.ts) — typed getters/setters, all
 `ConfigurationTarget.Global` / `application` scope. Don't call `getConfiguration` elsewhere.
 
-**Tree node types** ([src/view/treeItems.ts](src/view/treeItems.ts)): `BucketNode` → `PullRequestNode`
+**Tree node types** ([src/view/treeItems.ts](src/view/treeItems.ts)): `ProjectNode` → `PullRequestNode`
 → `ReviewerNode` / `CheckNode` / `ThreadsNode`, plus `MessageNode`. This file owns all
-status/vote → icon/label formatting. `contextValue`s (`pr.review`, `pr.mine`, …) drive the `when`
-clauses for the menu contributions in `package.json`.
+status/vote → icon/label formatting. `contextValue`s (`pr.review`, `pr.mine`, `pr.other`) drive the
+`when` clauses for the menu contributions in `package.json`. Relationship *label* styling (blue +
+`●` badge for review, dimmed for other) comes from the `FileDecorationProvider` in
+[src/view/prDecorations.ts](src/view/prDecorations.ts), keyed off each row's `azurepr-item:` resourceUri.
 
 ## Publishing
 

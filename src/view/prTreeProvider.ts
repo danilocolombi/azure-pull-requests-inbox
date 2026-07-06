@@ -3,32 +3,41 @@ import { AzureClient, isUnauthorized } from '../azure/client';
 import { getPrChangedFiles, PrDiff } from '../azure/diff';
 import {
   countUnresolved,
+  deriveRelationship,
   getChecks,
   getMyId,
   getThreads,
-  listPullRequests,
-  PrBucketKind,
+  listAllPullRequests,
+  MAX_PRS_PER_PROJECT,
+  PrRelationship,
   PrSummary
 } from '../azure/pullRequests';
 import {
   getIncludeDrafts,
   getReviewIncludeVoted,
-  getSubscriptions
+  getSubscriptions,
+  Subscription
 } from '../state/config';
 import {
-  BucketNode,
   CheckNode,
   FileChangeNode,
   FilesNode,
   MessageNode,
   Node,
   PrDetails,
+  ProjectNode,
   PullRequestNode,
   ReviewerNode,
   ThreadsNode
 } from './treeItems';
 
 const DETAIL_CONCURRENCY = 5;
+
+interface ProjectGroup {
+  sub: Subscription;
+  nodes: PullRequestNode[];
+  truncated: boolean;
+}
 
 export class PrTreeProvider implements vscode.TreeDataProvider<Node> {
   private readonly _onDidChangeTreeData = new vscode.EventEmitter<Node | undefined | void>();
@@ -39,7 +48,8 @@ export class PrTreeProvider implements vscode.TreeDataProvider<Node> {
   readonly onDidChangeData = this._onDidChangeData.event;
 
   private signedIn = false;
-  private buckets: Record<PrBucketKind, PullRequestNode[]> = { review: [], mine: [] };
+  private groups: ProjectGroup[] = [];
+  private myId: string | undefined;
   private errorMessage: string | undefined;
   private detailCache = new Map<number, PrDetails>();
   private diffCache = new Map<number, PrDiff>();
@@ -52,7 +62,7 @@ export class PrTreeProvider implements vscode.TreeDataProvider<Node> {
   setSignedIn(signedIn: boolean): void {
     this.signedIn = signedIn;
     if (!signedIn) {
-      this.buckets = { review: [], mine: [] };
+      this.groups = [];
       this.detailCache.clear();
       this.diffCache.clear();
     }
@@ -60,17 +70,36 @@ export class PrTreeProvider implements vscode.TreeDataProvider<Node> {
 
   /** Number of PRs awaiting the user's review — the actionable inbox count. */
   getReviewCount(): number {
-    return this.buckets.review.length;
+    return this.allNodes().filter((n) => n.pr.relationship === 'review').length;
   }
 
   getAllSummaries(): PrSummary[] {
-    return [...this.buckets.review, ...this.buckets.mine].map((n) => n.pr);
+    return this.allNodes().map((n) => n.pr);
   }
 
-  /** Drop a PR from the local model after a vote/complete so the tree updates instantly. */
-  removeFromReview(id: number): void {
-    this.buckets.review = this.buckets.review.filter((n) => n.pr.id !== id);
-    this._onDidChangeTreeData.fire();
+  /**
+   * Reflect a just-cast vote immediately: update the local summary, re-derive the
+   * relationship (voting normally demotes a PR out of the review queue), and re-sort its
+   * project group. The follow-up refresh confirms against the server.
+   */
+  markVoted(id: number, vote: number): void {
+    if (!this.myId) return;
+    for (const group of this.groups) {
+      const node = group.nodes.find((n) => n.pr.id === id);
+      if (!node) continue;
+      const pr = node.pr;
+      pr.myVote = vote;
+      const me = pr.reviewers.find((r) => !r.isContainer && r.id === this.myId);
+      if (me) me.vote = vote;
+      pr.relationship = deriveRelationship(pr, this.myId, getReviewIncludeVoted());
+      group.nodes = group.nodes
+        .filter((n) => n.pr.id !== id)
+        .concat(this.toNode(pr));
+      group.nodes.sort((a, b) => byRelationshipThenNewest(a.pr, b.pr));
+      this._onDidChangeData.fire(this.getAllSummaries());
+      this._onDidChangeTreeData.fire();
+      return;
+    }
   }
 
   refresh(): void {
@@ -88,15 +117,19 @@ export class PrTreeProvider implements vscode.TreeDataProvider<Node> {
     if (!element) {
       if (getSubscriptions().length === 0) return [];
       if (this.errorMessage) return [new MessageNode(this.errorMessage, 'error')];
-      return [
-        new BucketNode('review', this.buckets.review.length),
-        new BucketNode('mine', this.buckets.mine.length)
-      ];
+      return this.groups.map((g) => {
+        const forYou = g.nodes.filter((n) => n.pr.relationship === 'review').length;
+        const expand = g.nodes.some((n) => n.pr.relationship !== 'other');
+        return new ProjectNode(g.sub.projectId, g.sub.projectName, forYou, g.nodes.length, expand);
+      });
     }
-    if (element instanceof BucketNode) {
-      const nodes = this.buckets[element.bucket];
-      if (nodes.length === 0) return [new MessageNode('(none)')];
-      return nodes;
+    if (element instanceof ProjectNode) {
+      const group = this.groups.find((g) => g.sub.projectId === element.projectId);
+      if (!group || group.nodes.length === 0) return [new MessageNode('(no open pull requests)')];
+      if (group.truncated) {
+        return [...group.nodes, new MessageNode(`(showing first ${MAX_PRS_PER_PROJECT})`)];
+      }
+      return group.nodes;
     }
     if (element instanceof PullRequestNode) {
       return this.prChildren(element);
@@ -108,6 +141,10 @@ export class PrTreeProvider implements vscode.TreeDataProvider<Node> {
   }
 
   private prChildren(node: PullRequestNode): Node[] {
+    // 'other' rows skip the eager detail pass; fetch checks/threads on first expand.
+    if (node.pr.relationship === 'other' && !this.detailCache.has(node.pr.id) && this.myId) {
+      void this.loadDetails([node], this.myId);
+    }
     const children: Node[] = [];
     for (const r of node.pr.reviewers.filter((rv) => !rv.isContainer)) {
       children.push(new ReviewerNode(r));
@@ -136,9 +173,10 @@ export class PrTreeProvider implements vscode.TreeDataProvider<Node> {
   }
 
   /**
-   * Re-fetch both buckets across all subscriptions. The list call returns reviewers (and
-   * thus votes) inline; checks and unresolved-comment counts are then filled in lazily in
-   * the background and pushed into the rows as they arrive.
+   * Re-fetch every active PR across all subscriptions (one paged call per project) and
+   * derive each PR's relationship to the user locally. The list call returns reviewers
+   * (and thus votes) inline; checks and unresolved-comment counts are then filled in
+   * lazily in the background — eagerly only for rows that concern the user.
    */
   async refreshData(): Promise<void> {
     if (!this.signedIn || getSubscriptions().length === 0) {
@@ -147,12 +185,12 @@ export class PrTreeProvider implements vscode.TreeDataProvider<Node> {
       return;
     }
 
-    let myId: string | undefined;
     try {
-      myId = await getMyId(this.client);
+      this.myId = await getMyId(this.client);
     } catch (err) {
       return this.handleError(err);
     }
+    const myId = this.myId;
     if (!myId) {
       this.errorMessage = 'Could not resolve your Azure DevOps identity.';
       this._onDidChangeTreeData.fire();
@@ -160,33 +198,39 @@ export class PrTreeProvider implements vscode.TreeDataProvider<Node> {
     }
 
     const subs = getSubscriptions();
+    const includeVoted = getReviewIncludeVoted();
     try {
-      const [reviewLists, mineLists] = await Promise.all([
-        Promise.all(subs.map((s) => listPullRequests(this.client, s, 'review', myId!))),
-        Promise.all(subs.map((s) => listPullRequests(this.client, s, 'mine', myId!)))
-      ]);
+      const lists = await Promise.all(
+        subs.map((s) => listAllPullRequests(this.client, s, myId, includeVoted))
+      );
       this.errorMessage = undefined;
       this.onAuthError(false);
 
-      let review = reviewLists.flat().filter((p) => p.authorId !== myId && !p.isDraft);
-      if (!getReviewIncludeVoted()) review = review.filter((p) => p.myVote === 0);
-      let mine = mineLists.flat();
-      if (!getIncludeDrafts()) mine = mine.filter((p) => !p.isDraft);
-
-      review.sort(byNewest);
-      mine.sort(byNewest);
-
-      this.buckets = {
-        review: review.map((p) => this.toNode(p)),
-        mine: mine.map((p) => this.toNode(p))
-      };
+      const includeDrafts = getIncludeDrafts();
+      this.groups = subs.map((sub, i) => {
+        let prs = lists[i];
+        if (!includeDrafts) prs = prs.filter((p) => !p.isDraft);
+        prs.sort(byRelationshipThenNewest);
+        return {
+          sub,
+          nodes: prs.map((p) => this.toNode(p)),
+          truncated: lists[i].length >= MAX_PRS_PER_PROJECT
+        };
+      });
       this._onDidChangeData.fire(this.getAllSummaries());
       this._onDidChangeTreeData.fire();
 
-      void this.loadDetails([...this.buckets.review, ...this.buckets.mine], myId);
+      void this.loadDetails(
+        this.allNodes().filter((n) => n.pr.relationship !== 'other'),
+        myId
+      );
     } catch (err) {
       this.handleError(err);
     }
+  }
+
+  private allNodes(): PullRequestNode[] {
+    return this.groups.flatMap((g) => g.nodes);
   }
 
   private toNode(pr: PrSummary): PullRequestNode {
@@ -235,6 +279,10 @@ export class PrTreeProvider implements vscode.TreeDataProvider<Node> {
   }
 }
 
-function byNewest(a: PrSummary, b: PrSummary): number {
+const RELATIONSHIP_RANK: Record<PrRelationship, number> = { review: 0, mine: 1, other: 2 };
+
+function byRelationshipThenNewest(a: PrSummary, b: PrSummary): number {
+  const rank = RELATIONSHIP_RANK[a.relationship] - RELATIONSHIP_RANK[b.relationship];
+  if (rank !== 0) return rank;
   return (b.createdDate?.getTime() ?? 0) - (a.createdDate?.getTime() ?? 0);
 }

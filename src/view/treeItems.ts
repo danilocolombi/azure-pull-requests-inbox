@@ -1,10 +1,11 @@
 import * as vscode from 'vscode';
 import { getStaleAfterDays } from '../state/config';
-import { CheckStatus, PrBucketKind, PrCheck, PrReviewer, PrSummary, Vote } from '../azure/pullRequests';
+import { CheckStatus, PrCheck, PrReviewer, PrSummary, Vote } from '../azure/pullRequests';
 import { ChangedFile, FileChange } from '../azure/diff';
+import { prDecorationUri } from './prDecorations';
 
 export type Node =
-  | BucketNode
+  | ProjectNode
   | PullRequestNode
   | ReviewerNode
   | CheckNode
@@ -13,22 +14,25 @@ export type Node =
   | FileChangeNode
   | MessageNode;
 
-export const BUCKET_LABEL: Record<PrBucketKind, string> = {
-  review: 'Needs my review',
-  mine: 'My pull requests'
-};
-
-export class BucketNode extends vscode.TreeItem {
-  readonly kind = 'bucket' as const;
+/** Top-level group: one subscribed project, showing every active PR in it. */
+export class ProjectNode extends vscode.TreeItem {
+  readonly kind = 'project' as const;
   constructor(
-    public readonly bucket: PrBucketKind,
-    count: number
+    public readonly projectId: string,
+    name: string,
+    forYou: number,
+    open: number,
+    expand: boolean
   ) {
-    super(BUCKET_LABEL[bucket], vscode.TreeItemCollapsibleState.Expanded);
-    this.id = `bucket:${bucket}`;
-    this.contextValue = 'bucket';
-    this.description = `${count}`;
-    this.iconPath = new vscode.ThemeIcon(bucket === 'review' ? 'inbox' : 'git-pull-request');
+    super(
+      name,
+      expand ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.Collapsed
+    );
+    this.id = `project:${projectId}`;
+    this.contextValue = 'project';
+    this.description =
+      forYou > 0 ? `${forYou} for you · ${open} open` : `${open} open`;
+    this.iconPath = new vscode.ThemeIcon('project');
   }
 }
 
@@ -45,7 +49,7 @@ export class PullRequestNode extends vscode.TreeItem {
 
   constructor(public readonly pr: PrSummary) {
     super('', vscode.TreeItemCollapsibleState.Collapsed);
-    this.id = `pr:${pr.bucket}:${pr.id}`;
+    this.id = `pr:${pr.id}`;
     this.apply();
   }
 
@@ -59,7 +63,8 @@ export class PullRequestNode extends vscode.TreeItem {
     this.label = `#${pr.id}  ${pr.title}`;
     this.description = describe(pr, this.details);
     this.iconPath = prIcon(pr);
-    this.contextValue = pr.bucket === 'mine' ? 'pr.mine' : 'pr.review';
+    this.resourceUri = prDecorationUri(pr);
+    this.contextValue = `pr.${pr.relationship}`;
     this.tooltip = prTooltip(pr, this.details);
     this.command = {
       command: 'azurePullRequests.openConversation',
@@ -118,7 +123,7 @@ export class FilesNode extends vscode.TreeItem {
     count?: number
   ) {
     super('Files', vscode.TreeItemCollapsibleState.Collapsed);
-    this.id = `files:${pr.bucket}:${pr.id}`;
+    this.id = `files:${pr.id}`;
     this.contextValue = 'files';
     this.iconPath = new vscode.ThemeIcon('files');
     if (typeof count === 'number') this.description = `${count}`;
@@ -181,12 +186,13 @@ function fileChangeIcon(change: FileChange): vscode.ThemeIcon {
 }
 
 function describe(pr: PrSummary, d: PrDetails): string {
-  const parts: string[] = [`${pr.projectName}/${pr.repoName}`];
+  const parts: string[] = [pr.repoName];
+  if (pr.relationship !== 'mine') parts.push(pr.authorName);
   if (pr.isDraft) parts.push('draft');
   else if (pr.status !== 'active') parts.push(pr.status);
   if (pr.hasConflicts) parts.push('⚠ conflicts');
 
-  if (pr.bucket === 'review') {
+  if (pr.relationship === 'review') {
     const v = voteLabel(pr.myVote);
     if (v) parts.push(v);
   } else {
@@ -247,6 +253,8 @@ function prIcon(pr: PrSummary): vscode.ThemeIcon {
   if (pr.isDraft) return new vscode.ThemeIcon('git-pull-request-draft', color('disabledForeground'));
   if (pr.status === 'abandoned') return new vscode.ThemeIcon('git-pull-request-closed', color('disabledForeground'));
   if (pr.status === 'completed') return new vscode.ThemeIcon('git-merge', color('testing.iconPassed'));
+  // State colors are reserved for rows that concern the user; 'other' rows stay recessive.
+  if (pr.relationship === 'other') return new vscode.ThemeIcon('git-pull-request', color('disabledForeground'));
   if (pr.hasConflicts) return new vscode.ThemeIcon('git-pull-request', color('charts.orange'));
   if (pr.myVote === Vote.rejected) return new vscode.ThemeIcon('git-pull-request', color('testing.iconFailed'));
   if (pr.myVote >= Vote.approvedWithSuggestions)
@@ -305,7 +313,7 @@ function prTooltip(pr: PrSummary, d: PrDetails): vscode.MarkdownString {
   const lines: string[] = [`**#${pr.id}  ${pr.title}**`, `${pr.projectName} / ${pr.repoName}`];
   if (pr.sourceBranch && pr.targetBranch) lines.push(`${pr.sourceBranch} → ${pr.targetBranch}`);
   lines.push(`By ${pr.authorName}`);
-  if (pr.bucket === 'review') {
+  if (pr.relationship === 'review') {
     const v = voteLabel(pr.myVote);
     lines.push(`Your vote: ${v || 'none yet'}`);
   } else {
