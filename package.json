@@ -2,7 +2,7 @@
   "name": "azure-pull-requests-inbox",
   "displayName": "Azure Pull Requests Inbox",
   "description": "Your team's Azure DevOps pull requests in VS Code's sidebar — every PR by project, with the ones that need you highlighted on top.",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "publisher": "danilocolombi",
   "icon": "media/icon.png",
   "engines": {
@@ -104,6 +104,12 @@
         "title": "Open Conversation",
         "category": "Azure Pull Requests",
         "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "azurePullRequests.viewChanges",
+        "title": "View Changes",
+        "category": "Azure Pull Requests",
+        "icon": "$(diff-multiple)"
       },
       {
         "command": "azurePullRequests.reviewWithAi",
@@ -265,14 +271,19 @@
           "group": "2_actions@1"
         },
         {
-          "command": "azurePullRequests.openConversation",
+          "command": "azurePullRequests.viewChanges",
           "when": "view == azurePullRequests.inbox && viewItem =~ /^pr/",
           "group": "3_open@0"
         },
         {
-          "command": "azurePullRequests.openInBrowser",
+          "command": "azurePullRequests.openConversation",
           "when": "view == azurePullRequests.inbox && viewItem =~ /^pr/",
           "group": "3_open@1"
+        },
+        {
+          "command": "azurePullRequests.openInBrowser",
+          "when": "view == azurePullRequests.inbox && viewItem =~ /^pr/",
+          "group": "3_open@2"
         },
         {
           "command": "azurePullRequests.copyBranchName",
@@ -293,6 +304,10 @@
       "commandPalette": [
         {
           "command": "azurePullRequests.openConversation",
+          "when": "false"
+        },
+        {
+          "command": "azurePullRequests.viewChanges",
           "when": "false"
         },
         {
