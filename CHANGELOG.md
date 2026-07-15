@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1
+
+- **Dependency updates**: azure-devops-node-api 15, marked 18 (aligned with Azure Boards Inbox),
+  TypeScript 6, ESLint 10 (flat config). Wrapped errors from AI features now carry the original
+  error as `cause` for better diagnostics. No user-facing changes.
+
 ## 0.2.0
 
 The inbox now shows the whole team's activity, not just yours.
