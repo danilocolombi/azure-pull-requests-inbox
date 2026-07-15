@@ -110,7 +110,7 @@ async function runViaLm(
     return out.trim();
   } catch (err) {
     if (err instanceof vscode.LanguageModelError) {
-      throw new Error(`AI request failed: ${err.message}`);
+      throw new Error(`AI request failed: ${err.message}`, { cause: err });
     }
     throw err;
   }
@@ -154,7 +154,7 @@ async function runViaOpenAi(
   } catch (err) {
     if (err instanceof Error && err.name === 'AbortError') throw err;
     if (err instanceof TypeError) {
-      throw new Error(`AI request could not reach ${f.baseUrl}. Check azurePullRequests.ai.baseUrl and your network.`);
+      throw new Error(`AI request could not reach ${f.baseUrl}. Check azurePullRequests.ai.baseUrl and your network.`, { cause: err });
     }
     throw err;
   } finally {
