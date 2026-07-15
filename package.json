@@ -2,7 +2,7 @@
   "name": "azure-pull-requests-inbox",
   "displayName": "Azure Pull Requests Inbox",
   "description": "Your team's Azure DevOps pull requests in VS Code's sidebar — every PR by project, with the ones that need you highlighted on top.",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "publisher": "danilocolombi",
   "icon": "media/icon.png",
   "engines": {
