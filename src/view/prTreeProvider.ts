@@ -155,21 +155,28 @@ export class PrTreeProvider implements vscode.TreeDataProvider<Node> {
     return children;
   }
 
+  /** Fetch (and cache until the next refresh) the changed files for a PR. */
+  async getDiff(pr: PrSummary): Promise<PrDiff> {
+    let diff = this.diffCache.get(pr.id);
+    if (!diff) {
+      diff = await getPrChangedFiles(this.client, pr.repoId, pr.id, pr.projectName);
+      this.diffCache.set(pr.id, diff);
+    }
+    return diff;
+  }
+
   /** Lazily fetch the changed files for a PR the first time its Files group is expanded. */
   private async fileChildren(node: FilesNode): Promise<Node[]> {
     const pr = node.pr;
-    let diff = this.diffCache.get(pr.id);
-    if (!diff) {
-      try {
-        diff = await getPrChangedFiles(this.client, pr.repoId, pr.id, pr.projectName);
-        this.diffCache.set(pr.id, diff);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        return [new MessageNode(msg, 'error')];
-      }
+    let diff: PrDiff;
+    try {
+      diff = await this.getDiff(pr);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return [new MessageNode(msg, 'error')];
     }
     if (diff.files.length === 0) return [new MessageNode('(no file changes)')];
-    return diff.files.map((f) => new FileChangeNode(f, diff!.baseCommit, diff!.sourceCommit, pr));
+    return diff.files.map((f) => new FileChangeNode(f, diff.baseCommit, diff.sourceCommit, pr));
   }
 
   /**

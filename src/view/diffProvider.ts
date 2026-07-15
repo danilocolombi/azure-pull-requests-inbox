@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { AzureClient } from '../azure/client';
-import { ChangedFile, getItemTextAt } from '../azure/diff';
+import { ChangedFile, getItemTextAt, PrDiff } from '../azure/diff';
+import { PrSummary } from '../azure/pullRequests';
 
 export const DIFF_SCHEME = 'azurepr';
 
@@ -34,6 +35,26 @@ function blobUri(
   return vscode.Uri.from({ scheme: DIFF_SCHEME, path, query });
 }
 
+/** The [label, original, modified] triple for one file (undefined side = added/deleted). */
+function diffResource(
+  file: ChangedFile,
+  baseCommit: string,
+  sourceCommit: string,
+  repoId: string,
+  project: string
+): [vscode.Uri, vscode.Uri | undefined, vscode.Uri | undefined] {
+  const left =
+    file.change === 'add'
+      ? undefined
+      : blobUri(repoId, project, file.originalPath ?? file.path, baseCommit, 'base');
+  const right =
+    file.change === 'delete'
+      ? undefined
+      : blobUri(repoId, project, file.path, sourceCommit, 'source');
+  const label = vscode.Uri.from({ scheme: DIFF_SCHEME, path: file.path });
+  return [label, left, right];
+}
+
 /** Open the native side-by-side diff for one changed file (merge base ↔ source tip). */
 export async function openFileDiff(
   file: ChangedFile,
@@ -43,10 +64,26 @@ export async function openFileDiff(
   project: string,
   prId: number
 ): Promise<void> {
-  const left = blobUri(repoId, project, file.path, baseCommit, 'base');
+  const left = blobUri(repoId, project, file.originalPath ?? file.path, baseCommit, 'base');
   const right = blobUri(repoId, project, file.path, sourceCommit, 'source');
   const name = file.path.split('/').pop() ?? file.path;
   await vscode.commands.executeCommand('vscode.diff', left, right, `${name} (PR #${prId})`, {
     preview: true
   });
+}
+
+/**
+ * Open every file the PR changes in VS Code's multi-file diff editor (the same UI the
+ * built-in git "View Changes" uses), giving a GitHub-style "Files changed" review page.
+ * File contents are fetched lazily per file by the content provider as they scroll in.
+ */
+export async function openAllFileDiffs(pr: PrSummary, diff: PrDiff): Promise<void> {
+  if (diff.files.length === 0) {
+    void vscode.window.showInformationMessage(`PR #${pr.id} has no file changes.`);
+    return;
+  }
+  const resources = diff.files.map((f) =>
+    diffResource(f, diff.baseCommit, diff.sourceCommit, pr.repoId, pr.projectName)
+  );
+  await vscode.commands.executeCommand('vscode.changes', `PR #${pr.id}: ${pr.title}`, resources);
 }

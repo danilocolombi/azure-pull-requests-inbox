@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0
+
+- **Click a PR to review its diff** — selecting a PR in the inbox now opens every changed file
+  in VS Code's multi-file diff editor (a GitHub-style "Files changed" page) against the PR's
+  merge base, while the conversation panel keeps following the selection. "Open Conversation"
+  remains on the row's inline actions and right-click menu, alongside the new **View Changes**.
+- Renamed files now diff against their old path instead of appearing as full additions (in both
+  the new multi-file view and the per-file diffs under **Files**).
+
 ## 0.2.1
 
 - **Dependency updates**: azure-devops-node-api 15, marked 18 (aligned with Azure Boards Inbox),

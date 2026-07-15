@@ -66,9 +66,11 @@ export class PullRequestNode extends vscode.TreeItem {
     this.resourceUri = prDecorationUri(pr);
     this.contextValue = `pr.${pr.relationship}`;
     this.tooltip = prTooltip(pr, this.details);
+    // Clicking opens the PR's diffs in the editor; the conversation panel follows the
+    // tree selection separately, so both update from a single click.
     this.command = {
-      command: 'azurePullRequests.openConversation',
-      title: 'Open Conversation',
+      command: 'azurePullRequests.viewChanges',
+      title: 'View Changes',
       arguments: [this]
     };
   }

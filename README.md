@@ -31,6 +31,9 @@ and shares their stack and conventions.
   what's waiting on your review.
 - **Status at a glance** — each row shows `repo · author · status · votes · checks · 💬 unresolved`,
   with draft, conflict, and stale markers. Icons turn green/red/orange as votes and checks land.
+- **Click to review the diff** — clicking a PR opens every changed file in VS Code's multi-file
+  diff editor against the PR's merge base — a GitHub-style "Files changed" page, right in the
+  editor — while the conversation panel follows along.
 - **Expand for detail** — reviewers and their votes, branch-policy/build checks, a thread
   summary, and a **Files** group listing every changed file; click one to open a native VS Code
   side-by-side diff against the PR's merge base (just like Azure's web "Files" tab).

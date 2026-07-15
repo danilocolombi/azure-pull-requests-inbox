@@ -10,6 +10,8 @@ export type FileChange = 'add' | 'edit' | 'delete' | 'rename';
 export interface ChangedFile {
   path: string;
   change: FileChange;
+  /** For renames: the path on the base side of the diff. */
+  originalPath?: string;
 }
 
 export interface PrDiff {
@@ -47,7 +49,12 @@ export async function getPrChangedFiles(
     const path = c.item?.path;
     // Skip folders (gitObjectType folder) and entries without a path.
     if (!path || c.item?.isFolder) continue;
-    files.push({ path, change: decodeChange(c.changeType) });
+    const change = decodeChange(c.changeType);
+    files.push({
+      path,
+      change,
+      originalPath: change === 'rename' ? c.sourceServerItem : undefined
+    });
   }
   files.sort((a, b) => a.path.localeCompare(b.path));
   return { baseCommit, sourceCommit, files };

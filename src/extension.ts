@@ -14,7 +14,7 @@ import {
 } from './commands/prActions';
 import { copyPrForAi, reviewWithAi } from './commands/review';
 import { manageSubscriptions } from './commands/subscriptions';
-import { DiffContentProvider, DIFF_SCHEME, openFileDiff } from './view/diffProvider';
+import { DiffContentProvider, DIFF_SCHEME, openAllFileDiffs, openFileDiff } from './view/diffProvider';
 import { PollController } from './poll/pollController';
 import { getNotifyMode, getSubscriptions } from './state/config';
 import { ConversationPanel } from './view/conversationPanel';
@@ -208,6 +208,21 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       await manageSubscriptions(client);
       await refreshContext();
       refreshAll();
+    }),
+
+    vscode.commands.registerCommand('azurePullRequests.viewChanges', async (node) => {
+      if (!(node instanceof PullRequestNode)) return;
+      const pr = node.pr;
+      try {
+        const diff = await vscode.window.withProgress(
+          { location: vscode.ProgressLocation.Window, title: `Loading changes for PR #${pr.id}…` },
+          () => provider.getDiff(pr)
+        );
+        await openAllFileDiffs(pr, diff);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        void vscode.window.showErrorMessage(`Could not load changes for PR #${pr.id}: ${msg}`);
+      }
     }),
 
     vscode.commands.registerCommand('azurePullRequests.openConversation', async (node) => {
